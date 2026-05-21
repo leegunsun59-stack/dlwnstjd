@@ -312,11 +312,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <!-- ===== RANK PANEL ===== -->
 <div id="tab-rank" class="panel">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-    <div class="sec-label" style="margin:0;flex:1;">전기전도성 기준 랭킹 (TOP 20)</div>
+    <div class="sec-label" style="margin:0;flex:1;">전기전도성 기준 랭킹 (TOP 20) <span id="sync-info" style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-left:8px;text-transform:none;letter-spacing:0;"></span></div>
+    <button class="btn btn-secondary" id="btn-refresh-rank" style="font-size:11px;padding:6px 14px;">🔄 새로고침</button>
     <button class="btn btn-secondary" id="btn-export-rank" style="font-size:11px;padding:6px 14px;">📥 CSV 내보내기</button>
     <button class="btn btn-danger" id="btn-delete-rank" style="font-size:11px;padding:6px 14px;">🔒 전체 삭제 (관리자)</button>
   </div>
-  <p style="font-size:12px;color:var(--muted);margin-bottom:16px;font-family:var(--font-mono);">행을 클릭하면 해당 시뮬레이션 결과를 다시 볼 수 있습니다.</p>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:16px;font-family:var(--font-mono);">🔥 Firebase Realtime DB 연결됨 · 행을 클릭하면 해당 시뮬레이션 결과를 다시 볼 수 있습니다.</p>
   <div class="card" id="rank-area">
     <div class="empty">아직 저장된 결과가 없습니다<br><span style="display:block;margin-top:6px;font-size:10px;">시뮬레이션 후 ★ 랭킹에 저장 버튼으로 등록하세요</span></div>
   </div>
@@ -391,7 +392,8 @@ const CATEGORIES = ['전체','금속','탄소계','산화물','2D소재','유기
 const TYPES = ['전체','원소','화합물','합금'];
 const TYPE_LABELS = { element:'원소', compound:'화합물', alloy:'합금' };
 const TYPE_CLASS  = { element:'element', compound:'compound', alloy:'alloy' };
-const STORAGE_KEY = 'electrode_lab_rankings_v3';
+const FIREBASE_URL = 'https://dlwnstjd123123-default-rtdb.asia-southeast1.firebasedatabase.app';
+const RANK_PATH = '/rankings';
 const MAX_RANK = 20;
 const COLORS = ['#00e5ff','#7c3aed','#f59e0b','#22c55e','#ef4444','#ec4899','#06b6d4','#84cc16','#f97316','#a855f7','#14b8a6','#fb923c'];
 
@@ -568,14 +570,45 @@ function calcProps(ids, ratioMap){
   return { cond, thermReal, stab, cost, therm };
 }
 
-function persistRanking(){
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.ranking)); } catch(e){}
+// ===================== FIREBASE REST =====================
+async function fbGet(path){
+  const res = await fetch(`${FIREBASE_URL}${path}.json`);
+  if(!res.ok) throw new Error(`GET ${res.status}`);
+  return await res.json();
 }
-function loadRanking(){
-  try {
-    const raw=localStorage.getItem(STORAGE_KEY);
-    if(raw) state.ranking=JSON.parse(raw)||[];
-  } catch(e){ state.ranking=[]; }
+async function fbPost(path, data){
+  const res = await fetch(`${FIREBASE_URL}${path}.json`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  });
+  if(!res.ok) throw new Error(`POST ${res.status}`);
+  return await res.json(); // {name: "auto-generated-key"}
+}
+async function fbDelete(path){
+  const res = await fetch(`${FIREBASE_URL}${path}.json`,{ method:'DELETE' });
+  if(!res.ok) throw new Error(`DELETE ${res.status}`);
+}
+
+async function loadRankingFromFirebase(){
+  const rankEl = $('#rank-area');
+  if(rankEl) rankEl.innerHTML = '<div class="empty pulse">⏳ Firebase 에서 랭킹 불러오는 중...</div>';
+  try{
+    const data = await fbGet(RANK_PATH);
+    if(!data){
+      state.ranking = [];
+    } else {
+      // Firebase returns object keyed by auto-id; convert to array
+      state.ranking = Object.entries(data).map(([key,val])=>({...val, _key:key}));
+      state.ranking.sort((a,b)=>b.cs-a.cs);
+      state.ranking = state.ranking.slice(0, MAX_RANK);
+    }
+    state.lastSync = new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    renderRank();
+  } catch(e){
+    state.ranking = [];
+    if(rankEl) rankEl.innerHTML = `<div class="empty" style="color:var(--danger);">❌ Firebase 연결 실패: ${escapeHtml(e.message)}<br><span style="display:block;margin-top:8px;font-size:10px;color:var(--muted);">잠시 후 새로고침 버튼을 눌러주세요</span></div>`;
+  }
 }
 
 const $ = sel => document.querySelector(sel);
@@ -963,19 +996,28 @@ function openNickModal(){
 }
 function closeNickModal(){ $('#nick-modal').classList.add('hidden'); }
 
-function saveRankWithNick(){
+async function saveRankWithNick(){
   const nick=$('#nick-input').value.trim();
   const errEl=$('#nick-error');
   if(nick.length<2){ errEl.textContent='닉네임은 2자 이상이어야 합니다'; return; }
   if(nick.length>16){ errEl.textContent='닉네임은 16자 이하여야 합니다'; return; }
   if(!/^[가-힣a-zA-Z0-9_\-\s]+$/.test(nick)){ errEl.textContent='한글/영문/숫자/_-만 사용 가능합니다'; return; }
-  state.ranking.push({ ...state.lastResult, nick });
-  state.ranking.sort((a,b)=>b.cs-a.cs);
-  state.ranking=state.ranking.slice(0,MAX_RANK);
-  persistRanking();
-  renderRank();
-  closeNickModal();
-  toast(`★ "${nick}" 의 결과가 랭킹에 저장되었습니다!`);
+
+  const btn=$('#btn-confirm-nick');
+  btn.disabled=true; btn.textContent='저장 중...';
+  errEl.textContent='';
+
+  const entry={ ...state.lastResult, nick, savedAt: Date.now() };
+  try{
+    await fbPost(RANK_PATH, entry);
+    await loadRankingFromFirebase();
+    closeNickModal();
+    toast(`★ "${nick}" 의 결과가 랭킹에 저장되었습니다!`);
+  } catch(e){
+    errEl.textContent='저장 실패: '+e.message;
+  } finally {
+    btn.disabled=false; btn.textContent='저장';
+  }
 }
 
 function openAdminDelete(){
@@ -986,23 +1028,33 @@ function openAdminDelete(){
   setTimeout(()=>$('#admin-pw').focus(),100);
 }
 function closeAdminModal(){ $('#admin-modal').classList.add('hidden'); }
-function confirmAdmin(){
+async function confirmAdmin(){
   const pw=$('#admin-pw').value;
   if(pw!==ADMIN_PW){
     $('#admin-error').textContent='비밀번호가 틀렸습니다';
     $('#admin-pw').value='';
     return;
   }
-  closeAdminModal();
-  if(state.pendingAdminAction==='delete'){
-    state.ranking=[];
-    persistRanking();
-    renderRank();
-    toast('랭킹이 초기화되었습니다');
+  const btn=$('#btn-confirm-admin');
+  btn.disabled=true; btn.textContent='삭제 중...';
+  try{
+    if(state.pendingAdminAction==='delete'){
+      await fbDelete(RANK_PATH);
+      state.ranking=[];
+      renderRank();
+      closeAdminModal();
+      toast('랭킹이 초기화되었습니다');
+    }
+  } catch(e){
+    $('#admin-error').textContent='삭제 실패: '+e.message;
+  } finally {
+    btn.disabled=false; btn.textContent='확인';
   }
 }
 
 function renderRank(){
+  const syncEl=$('#sync-info');
+  if(syncEl) syncEl.textContent = state.lastSync ? `· 마지막 동기화 ${state.lastSync}` : '';
   const el=$('#rank-area');
   if(!state.ranking.length){
     el.innerHTML='<div class="empty">아직 저장된 결과가 없습니다<br><span style="display:block;margin-top:6px;font-size:10px;">시뮬레이션 후 ★ 랭킹에 저장 버튼으로 등록하세요</span></div>';
@@ -1114,7 +1166,7 @@ function switchTab(name){
   $$('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   $$('.panel').forEach(p=>p.classList.remove('active'));
   $('#tab-'+name).classList.add('active');
-  if(name==='rank') renderRank();
+  if(name==='rank') loadRankingFromFirebase();
 }
 
 // ===================== TOAST =====================
@@ -1141,6 +1193,7 @@ function bindEvents(){
   // Rank buttons
   $('#btn-delete-rank').addEventListener('click',openAdminDelete);
   $('#btn-export-rank').addEventListener('click',exportRankCSV);
+  $('#btn-refresh-rank').addEventListener('click',loadRankingFromFirebase);
   // Material modal
   $('#btn-close-mat').addEventListener('click',closeMaterialModal);
   $('#mat-modal').addEventListener('click',e=>{ if(e.target.id==='mat-modal') closeMaterialModal(); });
@@ -1166,7 +1219,6 @@ function bindEvents(){
 
 // ===================== INIT =====================
 function init(){
-  loadRanking();
   bindEvents();
   buildTrending();
   buildCatFilter('cat-filter', ()=>state.activeCat, cat=>{ state.activeCat=cat; buildSimChips(); });
