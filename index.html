@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electrode Lab — 반도체 전극 소재 시뮬레이터</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg:#09090f; --surface:#111118; --surface2:#18181f;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+  --accent:#00e5ff; --accent2:#7c3aed; --accent3:#f59e0b;
+  --text:#f0f0f8; --muted:#6b6b80; --danger:#ef4444; --success:#22c55e;
+  --font-mono:'Space Mono',monospace; --font-body:'Noto Sans KR',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+.orb{position:fixed;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0;}
+.orb-1{width:500px;height:500px;background:rgba(0,229,255,0.06);top:-100px;right:-100px;}
+.orb-2{width:400px;height:400px;background:rgba(124,58,237,0.07);bottom:100px;left:-100px;}
+#app{position:relative;z-index:1;max-width:1150px;margin:0 auto;padding:0 24px 80px;}
+
+/* HEADER */
+header{padding:36px 0 28px;border-bottom:1px solid var(--border);margin-bottom:32px;}
+.header-tag{font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.header-tag::before{content:'';width:24px;height:1px;background:var(--accent);}
+h1{font-family:var(--font-mono);font-size:clamp(26px,4vw,46px);font-weight:700;letter-spacing:-.02em;line-height:1.1;}
+h1 span{color:var(--accent);}
+.header-sub{margin-top:8px;font-size:13px;color:var(--muted);font-weight:300;}
+
+/* TRENDING BAR */
+.trending-bar{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 18px;margin-bottom:28px;display:flex;align-items:center;gap:14px;overflow-x:auto;}
+.trending-label{font-family:var(--font-mono);font-size:10px;color:var(--accent3);letter-spacing:.1em;white-space:nowrap;display:flex;align-items:center;gap:6px;}
+.trending-label::before{content:'🔥';}
+.trend-item{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;padding:5px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted);font-size:12px;font-family:var(--font-mono);transition:all .2s;}
+.trend-item:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,0.05);}
+.trend-rank{font-size:10px;color:var(--muted);}
+.trend-rank.top{color:var(--danger);}
+
+/* TABS */
+.tabs{display:flex;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:28px;width:fit-content;}
+.tab-btn{font-family:var(--font-mono);font-size:12px;padding:9px 20px;border-radius:7px;border:none;background:transparent;color:var(--muted);cursor:pointer;letter-spacing:.05em;transition:all .2s;display:flex;align-items:center;gap:7px;}
+.tab-btn .dot{width:6px;height:6px;border-radius:50%;background:var(--muted);transition:background .2s;}
+.tab-btn:hover{color:var(--text);}
+.tab-btn.active{background:var(--surface2);color:var(--accent);}
+.tab-btn.active .dot{background:var(--accent);box-shadow:0 0 6px var(--accent);}
+.panel{display:none;}
+.panel.active{display:block;}
+
+/* SEC LABEL */
+.sec-label{font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* CATEGORY FILTER */
+.cat-filter{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.cat-btn{font-size:11px;padding:4px 12px;border-radius:5px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;font-family:var(--font-mono);transition:all .2s;}
+.cat-btn:hover{color:var(--text);border-color:var(--border2);}
+.cat-btn.active{background:rgba(0,229,255,0.1);border-color:var(--accent);color:var(--accent);}
+
+/* TYPE FILTER (원소/화합물/합금) */
+.type-filter{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;}
+.type-btn{font-size:11px;padding:4px 12px;border-radius:5px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;font-family:var(--font-mono);transition:all .2s;display:flex;align-items:center;gap:5px;}
+.type-btn:hover{color:var(--text);}
+.type-btn.active{background:rgba(124,58,237,0.12);border-color:var(--accent2);color:var(--accent2);}
+.type-btn .type-dot{width:6px;height:6px;border-radius:50%;}
+.type-dot.element{background:#00e5ff;}
+.type-dot.compound{background:#f59e0b;}
+.type-dot.alloy{background:#22c55e;}
+
+/* CHIPS GROUPING */
+.type-group{margin-bottom:18px;}
+.type-group:last-child{margin-bottom:0;}
+.type-group-header{font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.type-group-header .type-dot{width:7px;height:7px;border-radius:50%;}
+.type-group-header .type-count{color:var(--muted);font-size:9px;}
+
+/* CHIPS */
+.chip-grid{display:flex;flex-wrap:wrap;gap:8px;}
+.chip{font-size:12px;padding:7px 14px;border-radius:7px;border:1px solid var(--border2);background:var(--surface);color:var(--muted);cursor:pointer;transition:all .2s;user-select:none;display:flex;align-items:center;gap:7px;position:relative;}
+.chip:hover{border-color:rgba(0,229,255,0.4);color:var(--text);}
+.chip.selected{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,0.06);}
+.chip .info-btn{width:16px;height:16px;border-radius:50%;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;font-family:var(--font-mono);}
+.chip .info-btn:hover{border-color:var(--accent);color:var(--accent);}
+.chip.selected .info-btn{border-color:var(--accent);color:var(--accent);}
+.chip-check{font-size:9px;color:var(--accent);}
+
+/* MATERIAL INFO MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);}
+.modal-overlay.hidden{display:none;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:560px;max-height:85vh;overflow-y:auto;padding:28px;}
+.modal-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;}
+.modal-title{font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--text);}
+.modal-sub{font-size:12px;color:var(--muted);margin-top:4px;font-family:var(--font-mono);display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.modal-sub .type-tag{padding:2px 8px;border-radius:4px;font-size:10px;}
+.type-tag.element{background:rgba(0,229,255,0.1);color:var(--accent);border:1px solid rgba(0,229,255,0.3);}
+.type-tag.compound{background:rgba(245,158,11,0.1);color:var(--accent3);border:1px solid rgba(245,158,11,0.3);}
+.type-tag.alloy{background:rgba(34,197,94,0.1);color:var(--success);border:1px solid rgba(34,197,94,0.3);}
+.modal-close{background:transparent;border:1px solid var(--border2);color:var(--muted);border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:16px;flex-shrink:0;}
+.modal-close:hover{color:var(--text);border-color:var(--border2);}
+.modal-section{margin-bottom:16px;}
+.modal-section-title{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;}
+.modal-desc{font-size:14px;line-height:1.8;color:#c8c8d8;}
+.modal-props{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.mprop{background:var(--surface2);border-radius:8px;padding:10px 12px;}
+.mprop-label{font-size:10px;color:var(--muted);font-family:var(--font-mono);margin-bottom:4px;}
+.mprop-val{font-size:14px;font-weight:500;font-family:var(--font-mono);color:var(--text);}
+.mprop-sub{font-size:10px;color:var(--muted);font-family:var(--font-mono);margin-top:2px;}
+.prop-bar-wrap{height:4px;background:var(--border2);border-radius:2px;margin-top:6px;}
+.prop-bar{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent2),var(--accent));}
+.modal-example{font-size:13px;line-height:1.7;color:#a0a0b8;background:var(--surface2);border-radius:8px;padding:12px;border-left:2px solid var(--accent);}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:16px;}
+.card-title{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin-bottom:16px;letter-spacing:.06em;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.card-title-sub{font-size:11px;color:var(--muted);font-family:var(--font-mono);}
+
+/* RATIO */
+.ratio-row{display:grid;grid-template-columns:170px 1fr 52px;align-items:center;gap:14px;margin-bottom:14px;}
+.ratio-name{font-size:13px;color:var(--text);}
+input[type=range]{-webkit-appearance:none;height:3px;background:var(--border2);border-radius:2px;outline:none;cursor:pointer;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);cursor:pointer;}
+.ratio-val{font-family:var(--font-mono);font-size:12px;color:var(--accent);text-align:right;}
+
+/* METRIC */
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+@media(max-width:700px){.metric-grid{grid-template-columns:repeat(2,1fr);}}
+.metric-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;position:relative;overflow:hidden;}
+.metric-card::before{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));}
+.metric-card.hi::before{background:linear-gradient(90deg,var(--accent3),var(--accent));}
+.metric-lbl{font-size:11px;color:var(--muted);margin-bottom:8px;font-family:var(--font-mono);letter-spacing:.05em;}
+.metric-val{font-size:22px;font-weight:700;font-family:var(--font-mono);color:var(--text);line-height:1.1;}
+.metric-val span.unit{font-size:11px;color:var(--muted);font-weight:400;margin-left:2px;}
+.metric-sub{font-size:10px;color:var(--muted);margin-top:6px;font-family:var(--font-mono);}
+
+/* BUTTONS */
+.btn{font-family:var(--font-mono);font-size:12px;letter-spacing:.08em;padding:10px 22px;border-radius:8px;border:none;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:8px;}
+.btn-primary{background:var(--accent);color:var(--bg);font-weight:700;}
+.btn-primary:hover{background:#33eaff;box-shadow:0 0 20px rgba(0,229,255,0.3);}
+.btn-secondary{background:transparent;color:var(--muted);border:1px solid var(--border2);}
+.btn-secondary:hover{color:var(--text);background:var(--surface2);}
+.btn-ghost{background:transparent;color:var(--accent2);border:1px solid rgba(124,58,237,0.3);}
+.btn-ghost:hover{background:rgba(124,58,237,0.1);}
+.btn-danger{background:transparent;color:var(--danger);border:1px solid rgba(239,68,68,0.3);}
+.btn-danger:hover{background:rgba(239,68,68,0.08);}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px;align-items:center;}
+
+/* CHART */
+.chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:16px;}
+.charts-2col{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px;}
+@media(max-width:700px){.charts-2col{grid-template-columns:1fr;}}
+
+/* COMPARE */
+.compare-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+@media(max-width:600px){.compare-cols{grid-template-columns:1fr;}}
+.compare-slot{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:90px;}
+.compare-slot-label{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;}
+.slot-a .compare-slot-label{color:var(--accent);}
+.slot-b .compare-slot-label{color:var(--accent3);}
+.cchip{font-family:var(--font-mono);font-size:11px;padding:4px 10px;border-radius:5px;cursor:pointer;transition:all .15s;display:inline-block;margin:2px;}
+.cchip-a{background:rgba(0,229,255,0.1);color:var(--accent);border:1px solid rgba(0,229,255,0.25);}
+.cchip-b{background:rgba(245,158,11,0.1);color:var(--accent3);border:1px solid rgba(245,158,11,0.25);}
+.cchip:hover{opacity:.7;}
+
+/* RANK TABLE */
+.rank-table{width:100%;border-collapse:collapse;}
+.rank-table th{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);}
+.rank-table td{padding:13px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.rank-table tr:last-child td{border-bottom:none;}
+.rank-table tbody tr{cursor:pointer;transition:background .15s;}
+.rank-table tbody tr:hover td{background:rgba(0,229,255,0.04);}
+.rank-num{font-family:var(--font-mono);font-size:18px;font-weight:700;}
+.rank-1{color:#fbbf24;} .rank-2{color:#94a3b8;} .rank-3{color:#b45309;}
+.score-bar-wrap{background:var(--surface2);border-radius:3px;height:6px;width:100px;overflow:hidden;}
+.score-bar{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:3px;}
+.badge{display:inline-block;font-family:var(--font-mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(0,229,255,0.1);color:var(--accent);border:1px solid rgba(0,229,255,0.2);letter-spacing:.05em;}
+.nick-badge{display:inline-block;font-family:var(--font-mono);font-size:11px;padding:3px 9px;border-radius:4px;background:rgba(124,58,237,0.1);color:var(--accent2);border:1px solid rgba(124,58,237,0.25);}
+
+/* NICK / ADMIN MODAL */
+.input-modal{background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:24px;width:100%;max-width:380px;}
+.input-modal.admin{border-color:var(--accent3);}
+.input-modal-title{font-family:var(--font-mono);font-size:14px;color:var(--accent);margin-bottom:8px;}
+.input-modal.admin .input-modal-title{color:var(--accent3);}
+.input-modal-desc{font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;}
+.input-field{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;color:var(--text);font-family:var(--font-mono);font-size:13px;outline:none;margin-bottom:8px;}
+.input-field:focus{border-color:var(--accent);}
+.input-modal.admin .input-field:focus{border-color:var(--accent3);}
+.input-error{font-size:11px;color:var(--danger);font-family:var(--font-mono);margin-bottom:10px;min-height:14px;}
+
+/* RESULT PANEL */
+#result-area{display:none;}
+#compare-result{display:none;}
+
+/* EMPTY */
+.empty{text-align:center;padding:40px;color:var(--muted);font-family:var(--font-mono);font-size:12px;}
+
+/* TOAST */
+#toast{position:fixed;bottom:30px;right:30px;background:var(--surface2);border:1px solid var(--accent);color:var(--accent);font-family:var(--font-mono);font-size:12px;padding:12px 20px;border-radius:8px;box-shadow:0 0 20px rgba(0,229,255,0.2);z-index:300;transform:translateY(20px);opacity:0;transition:all .3s;pointer-events:none;}
+#toast.show{transform:translateY(0);opacity:1;}
+
+/* ANIMATIONS */
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+.fade-in{animation:fadeUp .35s ease forwards;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+.pulse{animation:pulse 1.5s infinite;}
+
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div id="app">
+
+<!-- HEADER -->
+<header>
+  <div class="header-tag">Electrode Simulator v3.0</div>
+  <h1>Electrode<span>Lab</span></h1>
+  <p class="header-sub">반도체 전극 소재 전기전도성 &amp; 성능 비교 시뮬레이터 · 고등학생 친화 버전</p>
+</header>
+
+<!-- TRENDING -->
+<div class="trending-bar" id="trending-bar">
+  <span class="trending-label">인기 전극 소재</span>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab-btn active" data-tab="sim"><span class="dot"></span>시뮬레이터</button>
+  <button class="tab-btn" data-tab="compare"><span class="dot"></span>소재 비교</button>
+  <button class="tab-btn" data-tab="rank"><span class="dot"></span>랭킹</button>
+</div>
+
+<!-- ===== SIM PANEL ===== -->
+<div id="tab-sim" class="panel active">
+  <div class="sec-label">카테고리 필터</div>
+  <div class="cat-filter" id="cat-filter"></div>
+  <div class="sec-label">분류 필터</div>
+  <div class="type-filter" id="type-filter"></div>
+  <div class="sec-label">전극 소재 선택 <span style="font-size:10px;color:var(--muted);margin-left:6px;">ℹ 버튼으로 설명 보기</span></div>
+  <div id="chip-area"></div>
+
+  <div class="card" style="margin-top:24px;">
+    <div class="card-title">// 소재 혼합 비율 <span class="card-title-sub" id="ratio-sum"></span></div>
+    <div id="ratio-area"><div class="empty" style="padding:16px;font-size:11px;">소재를 선택하면 비율을 조정할 수 있습니다</div></div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btn-run-sim">▶ 시뮬레이션 실행</button>
+    <button class="btn btn-secondary" id="btn-reset-sim">↺ 초기화</button>
+  </div>
+
+  <div id="result-area">
+    <div class="sec-label">분석 결과</div>
+    <div class="metric-grid" id="metric-cards"></div>
+    <div class="charts-2col">
+      <div class="chart-wrap">
+        <div class="card-title">// 소재별 전기전도성 점수</div>
+        <div style="position:relative;height:240px;"><canvas id="barChart" role="img" aria-label="소재별 전기전도성 막대그래프"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="card-title">// 특성 레이더</div>
+        <div style="position:relative;height:240px;"><canvas id="radarChart" role="img" aria-label="소재 특성 레이더 차트"></canvas></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="btn-save-rank">★ 랭킹에 저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== COMPARE PANEL ===== -->
+<div id="tab-compare" class="panel">
+  <div class="sec-label">카테고리 필터</div>
+  <div class="cat-filter" id="cat-filter-c"></div>
+  <div class="sec-label">분류 필터</div>
+  <div class="type-filter" id="type-filter-c"></div>
+  <div class="sec-label">소재를 클릭해 A / B 에 추가</div>
+  <div id="compare-chip-area"></div>
+  <div class="compare-cols" style="margin-top:18px;">
+    <div class="compare-slot slot-a">
+      <div class="compare-slot-label">▶ 비교군 A</div>
+      <div id="slot-a"><span style="font-size:11px;color:var(--muted);">소재를 추가하세요</span></div>
+    </div>
+    <div class="compare-slot slot-b">
+      <div class="compare-slot-label">▶ 비교군 B</div>
+      <div id="slot-b"><span style="font-size:11px;color:var(--muted);">소재를 추가하세요</span></div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btn-run-compare">▶ 비교 실행</button>
+    <button class="btn btn-secondary" id="btn-clear-compare">↺ 초기화</button>
+  </div>
+  <div id="compare-result">
+    <div class="metric-grid" id="compare-metric-cards" style="grid-template-columns:repeat(2,1fr);"></div>
+    <div class="charts-2col">
+      <div class="chart-wrap">
+        <div class="card-title">// 특성 비교 레이더</div>
+        <div style="position:relative;height:280px;"><canvas id="compareRadar" role="img" aria-label="두 소재 조합 비교 레이더"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="card-title">// 전기전도성 비교</div>
+        <div style="position:relative;height:280px;"><canvas id="compareBar" role="img" aria-label="두 소재 조합 비교 막대"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== RANK PANEL ===== -->
+<div id="tab-rank" class="panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+    <div class="sec-label" style="margin:0;flex:1;">전기전도성 기준 랭킹 (TOP 20)</div>
+    <button class="btn btn-secondary" id="btn-export-rank" style="font-size:11px;padding:6px 14px;">📥 CSV 내보내기</button>
+    <button class="btn btn-danger" id="btn-delete-rank" style="font-size:11px;padding:6px 14px;">🔒 전체 삭제 (관리자)</button>
+  </div>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:16px;font-family:var(--font-mono);">행을 클릭하면 해당 시뮬레이션 결과를 다시 볼 수 있습니다.</p>
+  <div class="card" id="rank-area">
+    <div class="empty">아직 저장된 결과가 없습니다<br><span style="display:block;margin-top:6px;font-size:10px;">시뮬레이션 후 ★ 랭킹에 저장 버튼으로 등록하세요</span></div>
+  </div>
+</div>
+</div>
+
+<!-- MATERIAL INFO MODAL -->
+<div class="modal-overlay hidden" id="mat-modal">
+  <div class="modal" id="mat-modal-content">
+    <div class="modal-header">
+      <div style="flex:1;">
+        <div class="modal-title" id="mm-title"></div>
+        <div class="modal-sub" id="mm-sub"></div>
+      </div>
+      <button class="modal-close" id="btn-close-mat">✕</button>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">📚 한 줄 요약</div>
+      <div class="modal-desc" id="mm-summary"></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">🔬 고등학생 설명</div>
+      <div class="modal-desc" id="mm-desc"></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">📊 특성 수치</div>
+      <div class="modal-props" id="mm-props"></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">💡 실생활 사용 예시</div>
+      <div class="modal-example" id="mm-example"></div>
+    </div>
+  </div>
+</div>
+
+<!-- NICKNAME MODAL -->
+<div class="modal-overlay hidden" id="nick-modal">
+  <div class="input-modal">
+    <div class="input-modal-title">★ 랭킹에 저장</div>
+    <div class="input-modal-desc">닉네임을 입력해 결과를 랭킹에 등록하세요.<br>(2~16자, 한글/영문/숫자)</div>
+    <input class="input-field" type="text" id="nick-input" placeholder="닉네임 입력..." maxlength="16"/>
+    <div class="input-error" id="nick-error"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:1;" id="btn-confirm-nick">저장</button>
+      <button class="btn btn-secondary" id="btn-cancel-nick">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN MODAL -->
+<div class="modal-overlay hidden" id="admin-modal">
+  <div class="input-modal admin">
+    <div class="input-modal-title">🔐 관리자 인증 — 전체 삭제</div>
+    <div class="input-modal-desc">랭킹 전체 삭제는 관리자 권한이 필요합니다.</div>
+    <input class="input-field" type="password" id="admin-pw" placeholder="비밀번호 입력..."/>
+    <div class="input-error" id="admin-error"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:1;" id="btn-confirm-admin">확인</button>
+      <button class="btn btn-secondary" id="btn-cancel-admin">취소</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+// ===================== CONSTANTS =====================
+const ADMIN_PW = 'electrode2024';
+const CATEGORIES = ['전체','금속','탄소계','산화물','2D소재','유기물','합금'];
+const TYPES = ['전체','원소','화합물','합금'];
+const TYPE_LABELS = { element:'원소', compound:'화합물', alloy:'합금' };
+const TYPE_CLASS  = { element:'element', compound:'compound', alloy:'alloy' };
+const STORAGE_KEY = 'electrode_lab_rankings_v3';
+const MAX_RANK = 20;
+const COLORS = ['#00e5ff','#7c3aed','#f59e0b','#22c55e','#ef4444','#ec4899','#06b6d4','#84cc16','#f97316','#a855f7','#14b8a6','#fb923c'];
+
+// ===================== MATERIAL DATA =====================
+// cond = 전기전도도 (S/m, 실제값)
+// thermReal = 열전도도 (W/m·K, 실제값)
+// stab, cost, therm = 0~100 정규화 점수 (시각화용)
+const MATS = [
+  // ===== 금속 (모두 단일 원소) =====
+  { id:'ag',  name:'은 (Ag)',          cat:'금속',  type:'element', cond:6.30e7, thermReal:429,  stab:68, cost:20, therm:90,
+    summary:'전기전도성이 가장 높은 금속',
+    desc:'은(Ag)은 원소 주기율표 11족에 속하는 금속으로, 모든 금속 중 전기전도성이 가장 높습니다. 전자가 결정 구조 안에서 자유롭게 이동할 수 있기 때문에 전기가 잘 흐릅니다. 하지만 공기 중에서 황화물을 형성해 변색되는 단점이 있어요.',
+    example:'고급 전자기기의 회로 기판, 태양전지 전극, 항균 코팅 소재로 활용됩니다.' },
+  { id:'cu',  name:'구리 (Cu)',         cat:'금속',  type:'element', cond:5.96e7, thermReal:401,  stab:72, cost:88, therm:85,
+    summary:'산업에서 가장 널리 쓰이는 전도성 금속',
+    desc:'구리(Cu)는 전기전도성이 은 다음으로 높으면서 가격이 저렴해 산업에서 가장 많이 사용되는 전극 소재입니다. 원자가 전자(자유전자)가 풍부해 전류를 잘 전달합니다. 다만 습기에 노출되면 산화(녹)가 생길 수 있어요.',
+    example:'전선, 반도체 칩 내부 배선(인터커넥트), 인쇄회로기판(PCB)에 필수적으로 사용됩니다.' },
+  { id:'au',  name:'금 (Au)',           cat:'금속',  type:'element', cond:4.52e7, thermReal:318,  stab:95, cost:5,  therm:78,
+    summary:'산화 없이 오래가는 귀금속 전극',
+    desc:'금(Au)은 화학적으로 매우 안정적인 귀금속입니다. 산소·수분과 거의 반응하지 않아 수십 년이 지나도 전기적 성질이 유지됩니다. 전도성은 구리보다 낮지만, 부식 걱정이 없어 정밀 전자부품에 쓰입니다.',
+    example:'USB 커넥터 도금, 반도체 와이어본딩(chip과 기판을 연결하는 극세선), 우주 장비 전극.' },
+  { id:'al',  name:'알루미늄 (Al)',    cat:'금속',  type:'element', cond:3.77e7, thermReal:237,  stab:65, cost:92, therm:70,
+    summary:'가볍고 저렴한 경량 전극 소재',
+    desc:'알루미늄(Al)은 밀도가 낮아 무게 대비 전도성이 우수한 금속입니다. 표면에 얇은 산화막(Al₂O₃)이 자연스럽게 형성되어 내부를 보호하지만, 이 산화막이 전기 저항을 높이기도 합니다.',
+    example:'고압 송전선, 스마트폰 프레임의 접지 전극, 배터리 음극 집전체(current collector).' },
+  { id:'ti',  name:'티타늄 (Ti)',       cat:'금속',  type:'element', cond:2.38e6, thermReal:22,   stab:90, cost:70, therm:60,
+    summary:'내식성이 뛰어난 고안정성 금속',
+    desc:'티타늄(Ti)은 전기전도성은 높지 않지만 산·알칼리에 강하고 인체에 무해한 생체 친화성 금속입니다. 극한 환경에서도 형태와 전기적 특성을 유지합니다.',
+    example:'수전해(물로 수소 만들기) 전극, 의료용 임플란트 전극, 해수 담수화 장치.' },
+  { id:'pt',  name:'백금 (Pt)',          cat:'금속',  type:'element', cond:9.43e6, thermReal:72,   stab:98, cost:3,  therm:72,
+    summary:'촉매 활성이 뛰어난 귀금속 전극',
+    desc:'백금(Pt)은 화학적 안정성이 금보다 높고, 전기화학 반응(산화·환원)을 촉진하는 촉매 특성이 뛰어납니다. 수소 연료전지에서 산소를 전자와 결합시키는 핵심 역할을 합니다.',
+    example:'수소 연료전지 전극, pH 측정 센서, 고온 산화 환경의 반도체 전극.' },
+  { id:'ni',  name:'니켈 (Ni)',          cat:'금속',  type:'element', cond:1.43e7, thermReal:91,   stab:75, cost:78, therm:68,
+    summary:'배터리 양극의 핵심 소재',
+    desc:'니켈(Ni)은 자성을 띠며 내열성이 좋은 금속입니다. 리튬이온 배터리에서 에너지 밀도를 높이는 양극 소재(NCM, NCA)의 핵심 구성 요소이기도 합니다.',
+    example:'리튬이온 배터리 양극(NMC811), 수퍼커패시터 전극, 니켈-수소 전지.' },
+  { id:'mo',  name:'몰리브덴 (Mo)',    cat:'금속',  type:'element', cond:1.87e7, thermReal:138,  stab:82, cost:65, therm:75,
+    summary:'고온에서도 안정적인 내화 금속',
+    desc:'몰리브덴(Mo)은 녹는점이 2623°C로 매우 높아 고온 환경에서도 사용 가능한 전극 소재입니다. 트랜지스터의 게이트 금속이나 디스플레이 배선 재료로도 활용됩니다.',
+    example:'LCD 디스플레이 배선, 박막 트랜지스터(TFT) 게이트 전극, 고온 로 내부 가열 전극.' },
+  { id:'w',   name:'텅스텐 (W)',         cat:'금속',  type:'element', cond:1.77e7, thermReal:173,  stab:88, cost:58, therm:65,
+    summary:'녹는점이 가장 높은 금속 전극',
+    desc:'텅스텐(W)은 모든 금속 중 녹는점(3422°C)이 가장 높습니다. 전자총에서 전자를 발사하는 필라멘트로 쓰이고, 반도체 공정에서 플러그 소재로 사용됩니다.',
+    example:'전구 필라멘트(역사적), 반도체의 컨택 플러그, X선 발생장치 전극.' },
+
+  // ===== 탄소계 (대부분 단일 원소 - 탄소 동소체) =====
+  { id:'gra', name:'그래핀',             cat:'탄소계', type:'element', cond:1.0e8, thermReal:3000, stab:60, cost:30, therm:95,
+    summary:'현존 최고의 전기전도성 2D 소재',
+    desc:'그래핀은 탄소 원자 하나의 두께로 이루어진 2차원 벌집 구조의 소재입니다. 전자가 마치 빛처럼 저항 없이 이동할 수 있어, 모든 알려진 소재 중 전기전도성이 가장 높습니다. 2010년 노벨 물리학상 연구 주제이기도 해요.',
+    example:'차세대 트랜지스터, 투명 전극(터치스크린), 초고속 충전 배터리, 바이오센서.' },
+  { id:'cnt', name:'탄소나노튜브 (CNT)', cat:'탄소계', type:'element', cond:1.0e7, thermReal:3500, stab:55, cost:25, therm:88,
+    summary:'원통형 탄소 구조체, 극한 전도성',
+    desc:'탄소나노튜브(CNT)는 그래핀을 원통 모양으로 말아 놓은 나노 크기 구조체입니다. 종류에 따라 금속성(전도체) 또는 반도체 성질을 가집니다. 강도는 강철의 100배지만 무게는 1/6 수준입니다.',
+    example:'유연 전자소자 전극, 필드 에미터(전자 방출), 고성능 배터리 첨가제.' },
+  { id:'gc',  name:'유리질 탄소',        cat:'탄소계', type:'element', cond:1.25e4, thermReal:6,   stab:88, cost:70, therm:40,
+    summary:'전기화학적으로 안정한 탄소 전극',
+    desc:'유리질 탄소(Glassy Carbon)는 흑연과 다이아몬드의 중간 구조를 가진 특수 탄소 소재입니다. 표면이 매끄럽고 화학적으로 매우 안정하여 다양한 용액에서도 반응하지 않습니다. 실험실 전기화학 분석에 표준으로 쓰입니다.',
+    example:'전기화학 실험의 기준 전극, 고온 도가니, 방사성 폐기물 처리 장치.' },
+  { id:'gr',  name:'흑연 (Graphite)',    cat:'탄소계', type:'element', cond:2.0e4, thermReal:120,  stab:80, cost:85, therm:55,
+    summary:'층상 구조의 저비용 탄소 전극',
+    desc:'흑연은 탄소 원자가 층층이 쌓인 구조입니다. 각 층(그래핀) 안에서는 전자가 잘 이동하지만 층 사이에는 약한 반데르발스 힘만 있어서 전도성이 방향에 따라 다릅니다. 연필심이 바로 흑연입니다!',
+    example:'리튬이온 배터리 음극(가장 많이 쓰임), 연료전지 집전판, 아크 용접 전극.' },
+
+  // ===== 산화물 (모두 화합물) =====
+  { id:'ito', name:'ITO',                cat:'산화물', type:'compound', cond:1.0e4, thermReal:11, stab:80, cost:60, therm:50,
+    summary:'빛도 통과하는 투명 전도성 산화물',
+    desc:'ITO(인듐 주석 산화물, In₂O₃·SnO₂)는 빛을 90% 이상 통과시키면서도 전기가 흐르는 특수 산화물 소재입니다. 투명하고 전도성이 있다는 이 특성은 터치스크린과 디스플레이에 필수적입니다. 인듐이 희소 금속이라 가격이 비싸고 잘 부서지는 단점이 있어요.',
+    example:'스마트폰·태블릿 터치스크린, OLED·LCD 디스플레이 전극, 태양전지 전면 전극.' },
+  { id:'azo', name:'AZO (Al-ZnO)',       cat:'산화물', type:'compound', cond:5.0e3, thermReal:30, stab:72, cost:75, therm:45,
+    summary:'ITO를 대체하는 저비용 투명 전극',
+    desc:'AZO(Aluminum-doped Zinc Oxide)는 ITO보다 훨씬 저렴하면서 유사한 투명 전도성을 가진 소재입니다. 인듐이 필요 없어 친환경적이고, 유연 기판에도 적용 가능합니다. 현재 ITO 대체재로 활발히 연구 중입니다.',
+    example:'유연 태양전지, 대면적 투명 전극, 차세대 디스플레이 전극.' },
+  { id:'ruo2',name:'RuO₂',               cat:'산화물', type:'compound', cond:2.0e4, thermReal:50, stab:92, cost:15, therm:58,
+    summary:'뛰어난 전기화학 안정성의 산화물',
+    desc:'이산화루테늄(RuO₂)은 금속과 비슷한 전기전도성을 가진 산화물로, 전기화학적 안정성이 극히 높습니다. 충방전 시에도 거의 변하지 않아 수퍼커패시터 전극으로 이상적입니다.',
+    example:'수퍼커패시터 전극, 클로르알칼리 공정(소금물로 염소·수소 생산) 전극, 전기화학 촉매.' },
+  { id:'fto', name:'FTO (F-SnO₂)',       cat:'산화물', type:'compound', cond:8.0e3, thermReal:5,  stab:85, cost:70, therm:48,
+    summary:'고온에서도 안정한 투명 전도성 산화물',
+    desc:'FTO(불소 도핑 산화주석)는 ITO보다 고온·산성 환경에서 훨씬 안정적입니다. 태양전지 연구(염료감응 태양전지)에서 핵심 투명 전극 소재로 쓰입니다.',
+    example:'염료감응 태양전지(DSSC), 페로브스카이트 태양전지 하부 전극, 전기변색 유리(스마트 윈도우).' },
+
+  // ===== 2D 소재 (혼합: 원소+화합물) =====
+  { id:'mos2', name:'MoS₂',              cat:'2D소재', type:'compound', cond:1.0e3, thermReal:35, stab:70, cost:55, therm:52,
+    summary:'차세대 반도체용 2D 소재',
+    desc:'이황화몰리브덴(MoS₂)은 그래핀처럼 원자 한 층 두께로 만들 수 있는 2차원 소재입니다. 그래핀과 달리 자체적으로 에너지 밴드갭(반도체 성질)을 가져 트랜지스터 소자 구현이 가능합니다. 실리콘의 한계를 뛰어넘을 차세대 반도체 소재로 주목받고 있어요.',
+    example:'2D 트랜지스터, 유연 반도체 소자, 광센서(빛을 전기로 변환).' },
+  { id:'bp',  name:'블랙 포스포러스 (BP)', cat:'2D소재', type:'element', cond:1.0e4, thermReal:40, stab:45, cost:30, therm:60,
+    summary:'전자 이동도가 높은 신소재 (인 동소체)',
+    desc:'블랙 포스포러스(Black Phosphorus, 흑린)는 단일 원소 인(P)의 동소체로, 그래핀보다 높은 전하 이동도와 자연적 밴드갭을 가집니다. 단, 공기 중 산소·수분에 취약해 봉지 처리가 필요합니다.',
+    example:'고속 전계효과 트랜지스터, 적외선 광검출기, 유연 전자소자.' },
+  { id:'mxene',name:'MXene (Ti₃C₂Tₓ)',  cat:'2D소재', type:'compound', cond:6.0e6, thermReal:55, stab:65, cost:35, therm:70,
+    summary:'금속성 전도성을 가진 2D 세라믹',
+    desc:'MXene(맥신)은 2011년 발견된 2차원 탄화물·질화물 소재로, 금속과 같은 전도성과 세라믹의 안정성을 동시에 갖습니다. 표면에 작용기가 풍부해 이온이 잘 삽입되어 에너지 저장에 유리합니다.',
+    example:'수퍼커패시터, 전자기파 차폐(EMI shielding), 유연 에너지 저장 전극.' },
+  { id:'wse2', name:'WSe₂',              cat:'2D소재', type:'compound', cond:5.0e2, thermReal:9,  stab:68, cost:40, therm:44,
+    summary:'광전 변환 특성이 우수한 2D 반도체',
+    desc:'이셀레늄화텅스텐(WSe₂)은 MoS₂와 비슷한 구조의 2D 소재로, 빛을 전기로 변환하는 광전 변환 효율이 높습니다. 양극성 트랜지스터(n형·p형 모두 가능)를 구현할 수 있는 특성이 있습니다.',
+    example:'광전 트랜지스터, 2D 재료 기반 발광 소자(LED), 광 검출기.' },
+
+  // ===== 유기물 (모두 화합물) =====
+  { id:'pedot',name:'PEDOT:PSS',          cat:'유기물', type:'compound', cond:1.0e3, thermReal:0.5, stab:60, cost:72, therm:35,
+    summary:'유연하고 투명한 유기 전도성 폴리머',
+    desc:'PEDOT:PSS는 전기가 흐르는 유기 고분자(플라스틱) 소재입니다. 보통 플라스틱은 절연체인데, 특수한 구조 덕분에 전자가 이동할 수 있습니다. 용액 형태로 인쇄(프린팅)할 수 있어 저비용 대면적 전극 제작이 가능합니다.',
+    example:'유기 태양전지, 유기 LED(OLED) 정공 수송층, 웨어러블 바이오 전극.' },
+  { id:'polyani',name:'폴리아닐린 (PANI)',cat:'유기물', type:'compound', cond:1.0e2, thermReal:0.3, stab:55, cost:80, therm:30,
+    summary:'산도에 따라 전도성이 변하는 스마트 소재',
+    desc:'폴리아닐린(PANI)은 pH(산성/염기성)에 따라 전기전도성이 극적으로 변하는 전도성 고분자입니다. 합성이 간단하고 비용이 저렴하며, 도핑 상태에서는 반금속 수준의 전도성을 가집니다.',
+    example:'수퍼커패시터 전극, 화학 센서(가스·pH 감지), 부식 방지 코팅.' },
+
+  // ===== 합금 =====
+  { id:'agcu', name:'은-구리 합금 (Ag-Cu)', cat:'합금', type:'alloy', cond:5.5e7, thermReal:360, stab:76, cost:55, therm:88,
+    summary:'전도성과 강도를 모두 잡은 합금',
+    desc:'은과 구리를 혼합한 합금으로 순수 구리보다 강도가 높고, 순수 은보다 저렴합니다. 두 금속의 원자가 섞여 격자가 단단해지면서 기계적 강도가 올라가도 전도성은 크게 떨어지지 않습니다.',
+    example:'고성능 전기 접점, 고전류용 배선, 레이더 장치 내부 도체.' },
+  { id:'cuag', name:'구리-은 나노복합체',  cat:'합금', type:'alloy', cond:5.8e7, thermReal:380, stab:78, cost:50, therm:87,
+    summary:'나노 기술로 만든 고전도성 복합 전극',
+    desc:'구리 기지에 나노 크기의 은 입자를 분산시킨 복합 소재입니다. 나노 입자가 결정립 성장을 억제해 강도와 내열성을 높이면서 전도성도 유지합니다.',
+    example:'전도성 잉크(인쇄 전자), 방열 기판, 고신뢰성 반도체 패키지.' },
+  { id:'tiau', name:'티타늄-금 (Ti/Au)',   cat:'합금', type:'alloy', cond:4.0e7, thermReal:100, stab:94, cost:12, therm:76,
+    summary:'접착력과 안정성을 결합한 이중층 전극',
+    desc:'티타늄(Ti) 얇은 층 위에 금(Au)을 증착한 구조입니다. Ti는 기판과의 접착력이 뛰어나 Au가 떨어지지 않도록 잡아주고, Au는 산화 없이 전기적 안정성을 제공합니다. 반도체 연구에서 표준 전극으로 많이 쓰입니다.',
+    example:'반도체 소자 연구용 전극 패드, MEMS 소자, 바이오센서 접촉 전극.' },
+];
+
+// ===================== STATE =====================
+const state = {
+  selected: [],
+  ratios: {},
+  ranking: [],
+  compareA: [],
+  compareB: [],
+  charts: {},
+  activeCat: '전체',
+  activeCatC: '전체',
+  activeType: '전체',
+  activeTypeC: '전체',
+  pendingAdminAction: null,
+  lastResult: null,
+};
+
+const TRENDING_MATS = ['gra','ag','cu','mxene','ito','cnt','pedot','mos2','tiau','fto'];
+
+// ===================== UTILITIES =====================
+const matById = id => MATS.find(m=>m.id===id);
+
+function formatScientific(n, digits=2){
+  if(n===0) return '0';
+  const abs=Math.abs(n);
+  if(abs>=0.01 && abs<10000) return (+n.toFixed(digits)).toString();
+  const exp=Math.floor(Math.log10(abs));
+  const mantissa=(n/Math.pow(10,exp)).toFixed(digits);
+  return `${mantissa}×10${toSuperscript(exp)}`;
+}
+function toSuperscript(n){
+  const map={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+  return n.toString().split('').map(c=>map[c]||c).join('');
+}
+function condScore(c){ return +(Math.min(100,Math.log10(c)/Math.log10(1e8)*100)).toFixed(1); }
+function thermScore(t){ return +(Math.min(100,Math.log10(t+1)/Math.log10(5001)*100)).toFixed(1); }
+
+function calcProps(ids, ratioMap){
+  const total=ids.reduce((s,id)=>s+(ratioMap?ratioMap[id]:50),0)||1;
+  let cond=0, thermReal=0, stab=0, cost=0, therm=0;
+  ids.forEach(id=>{
+    const m=matById(id);
+    const w=(ratioMap?ratioMap[id]:50)/total;
+    cond+=m.cond*w;
+    thermReal+=m.thermReal*w;
+    stab+=m.stab*w;
+    cost+=m.cost*w;
+    therm+=m.therm*w;
+  });
+  return { cond, thermReal, stab, cost, therm };
+}
+
+function persistRanking(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.ranking)); } catch(e){}
+}
+function loadRanking(){
+  try {
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(raw) state.ranking=JSON.parse(raw)||[];
+  } catch(e){ state.ranking=[]; }
+}
+
+const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+
+// ===================== TRENDING =====================
+function buildTrending(){
+  const bar=$('#trending-bar');
+  bar.innerHTML='<span class="trending-label">인기 전극 소재</span>';
+  TRENDING_MATS.forEach((id,i)=>{
+    const m=matById(id);
+    const btn=document.createElement('button');
+    btn.className='trend-item';
+    btn.innerHTML=`<span class="trend-rank ${i<3?'top':''}">${i+1}</span>${m.name}`;
+    btn.addEventListener('click',()=>{
+      switchTab('sim');
+      if(!state.selected.includes(id)){ state.selected.push(id); state.ratios[id]=50; }
+      buildSimChips(); buildRatioUI();
+      toast(`${m.name} 선택됨`);
+    });
+    bar.appendChild(btn);
+  });
+}
+
+// ===================== FILTERS =====================
+function buildCatFilter(elId, getActive, onSelect){
+  const el=document.getElementById(elId);
+  el.innerHTML='';
+  CATEGORIES.forEach(cat=>{
+    const b=document.createElement('button');
+    b.className='cat-btn'+(getActive()===cat?' active':'');
+    b.textContent=cat;
+    b.addEventListener('click',()=>{ onSelect(cat); buildCatFilter(elId,getActive,onSelect); });
+    el.appendChild(b);
+  });
+}
+
+function buildTypeFilter(elId, getActive, onSelect){
+  const el=document.getElementById(elId);
+  el.innerHTML='';
+  TYPES.forEach(t=>{
+    const b=document.createElement('button');
+    b.className='type-btn'+(getActive()===t?' active':'');
+    const typeKey = t==='원소'?'element' : t==='화합물'?'compound' : t==='합금'?'alloy' : '';
+    const dot = typeKey ? `<span class="type-dot ${typeKey}"></span>` : '';
+    b.innerHTML=`${dot}${t}`;
+    b.addEventListener('click',()=>{ onSelect(t); buildTypeFilter(elId,getActive,onSelect); });
+    el.appendChild(b);
+  });
+}
+
+function filteredMats(cat, typeFilter){
+  let list = cat==='전체' ? MATS : MATS.filter(m=>m.cat===cat);
+  if(typeFilter && typeFilter!=='전체'){
+    const key = typeFilter==='원소'?'element' : typeFilter==='화합물'?'compound' : 'alloy';
+    list = list.filter(m=>m.type===key);
+  }
+  return list;
+}
+
+// ===================== CHIP BUILDERS =====================
+function buildChipGroups(container, mats, isSelected, onChipClick){
+  container.innerHTML='';
+  // Group by type for visual separation
+  const groups = [
+    { key:'element',  label:'원소 (단일 원소)' },
+    { key:'compound', label:'화합물' },
+    { key:'alloy',    label:'합금' },
+  ];
+  let rendered=0;
+  groups.forEach(g=>{
+    const items=mats.filter(m=>m.type===g.key);
+    if(!items.length) return;
+    const groupDiv=document.createElement('div');
+    groupDiv.className='type-group';
+    groupDiv.innerHTML=`
+      <div class="type-group-header">
+        <span class="type-dot ${g.key}"></span>
+        ${g.label}
+        <span class="type-count">(${items.length})</span>
+      </div>
+      <div class="chip-grid"></div>`;
+    const grid=groupDiv.querySelector('.chip-grid');
+    items.forEach(m=>{
+      const sel=isSelected(m.id);
+      const chip=document.createElement('div');
+      chip.className='chip'+(sel?' selected':'');
+      // Apply custom color for compare slots
+      if(typeof sel==='string'){
+        chip.classList.add('selected');
+        if(sel==='b') chip.style.cssText='border-color:var(--accent3);color:var(--accent3);background:rgba(245,158,11,0.06);';
+      }
+      chip.innerHTML=`
+        <span style="font-size:10px;color:var(--muted);">${catEmoji(m.cat)}</span>
+        <span class="chip-name" style="flex:1;">${m.name}</span>
+        ${sel===true?'<span class="chip-check">✓</span>':''}
+        <button class="info-btn" aria-label="자세히 보기">i</button>`;
+      chip.querySelector('.chip-name').addEventListener('click',()=>onChipClick(m.id));
+      chip.querySelector('.info-btn').addEventListener('click',(e)=>{
+        e.stopPropagation();
+        openMatModal(m.id);
+      });
+      grid.appendChild(chip);
+    });
+    container.appendChild(groupDiv);
+    rendered++;
+  });
+  if(rendered===0){
+    container.innerHTML='<div class="empty" style="padding:24px;font-size:11px;">조건에 맞는 소재가 없습니다</div>';
+  }
+}
+
+function buildSimChips(){
+  const mats=filteredMats(state.activeCat, state.activeType);
+  buildChipGroups(
+    $('#chip-area'),
+    mats,
+    id=>state.selected.includes(id),
+    id=>toggleMat(id)
+  );
+}
+
+function buildCompareChips(){
+  const mats=filteredMats(state.activeCatC, state.activeTypeC);
+  buildChipGroups(
+    $('#compare-chip-area'),
+    mats,
+    id=>state.compareA.includes(id)?'a' : state.compareB.includes(id)?'b' : false,
+    id=>addToCompare(id)
+  );
+}
+
+function catEmoji(cat){
+  const map={'금속':'🔩','탄소계':'⬛','산화물':'🔵','2D소재':'🟦','유기물':'🟢','합금':'⚙️'};
+  return map[cat]||'●';
+}
+
+// ===================== TOGGLE / RATIO =====================
+function toggleMat(id){
+  if(state.selected.includes(id)){
+    state.selected=state.selected.filter(x=>x!==id);
+    delete state.ratios[id];
+  } else {
+    state.selected.push(id);
+    state.ratios[id]=50;
+  }
+  buildSimChips();
+  buildRatioUI();
+}
+
+function buildRatioUI(){
+  const el=$('#ratio-area');
+  const sumEl=$('#ratio-sum');
+  if(!state.selected.length){
+    el.innerHTML='<div class="empty" style="padding:16px;font-size:11px;">소재를 선택하면 비율을 조정할 수 있습니다</div>';
+    sumEl.textContent='';
+    return;
+  }
+  el.innerHTML=state.selected.map(id=>{
+    const m=matById(id);
+    return `<div class="ratio-row">
+      <span class="ratio-name">${m.name}</span>
+      <input type="range" min="0" max="100" step="1" value="${state.ratios[id]}" data-mid="${id}"/>
+      <span class="ratio-val" id="rv-${id}">${state.ratios[id]}%</span>
+    </div>`;
+  }).join('');
+  // bind ratio inputs
+  el.querySelectorAll('input[type=range]').forEach(inp=>{
+    inp.addEventListener('input',e=>{
+      const id=e.target.dataset.mid;
+      state.ratios[id]=+e.target.value;
+      $(`#rv-${id}`).textContent=e.target.value+'%';
+      updateRatioSum();
+    });
+  });
+  updateRatioSum();
+}
+
+function updateRatioSum(){
+  const sum=state.selected.reduce((s,id)=>s+(state.ratios[id]||0),0);
+  const el=$('#ratio-sum');
+  if(state.selected.length<=1){ el.textContent=''; return; }
+  el.innerHTML=`합계: <span style="color:${sum===0?'var(--danger)':'var(--accent)'};">${sum}%</span> <span style="color:var(--muted);font-size:10px;">(정규화되어 계산됨)</span>`;
+}
+
+// ===================== SIMULATE =====================
+function runSim(){
+  if(!state.selected.length){ toast('소재를 1개 이상 선택하세요'); return; }
+  const sumRatio=state.selected.reduce((s,id)=>s+(state.ratios[id]||0),0);
+  if(sumRatio===0){ toast('모든 비율이 0입니다. 비율을 조정하세요'); return; }
+  const p=calcProps(state.selected, state.ratios);
+  const cs=condScore(p.cond);
+  showResult(state.selected, state.ratios, p, cs);
+  state.lastResult={
+    name: state.selected.map(id=>matById(id).name).join(' + '),
+    ids:[...state.selected],
+    ratioSnap:{...state.ratios},
+    cs, cond:p.cond, thermReal:p.thermReal,
+    stab:Math.round(p.stab), cost:Math.round(p.cost), therm:Math.round(p.therm),
+    time:new Date().toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+  };
+}
+
+function showResult(ids, ratioSnap, p, cs){
+  const ra=$('#result-area');
+  ra.style.display='block';
+  ra.className='fade-in';
+  $('#metric-cards').innerHTML=`
+    <div class="metric-card hi">
+      <div class="metric-lbl">전기전도도</div>
+      <div class="metric-val">${formatScientific(p.cond)}<span class="unit"> S/m</span></div>
+      <div class="metric-sub">점수: ${cs} / 100</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-lbl">열전도도</div>
+      <div class="metric-val">${formatScientific(p.thermReal,1)}<span class="unit"> W/(m·K)</span></div>
+      <div class="metric-sub">점수: ${thermScore(p.thermReal)} / 100</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-lbl">안정성 점수</div>
+      <div class="metric-val">${Math.round(p.stab)}<span class="unit"> /100</span></div>
+      <div class="metric-sub">화학·내구성 종합</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-lbl">비용 효율 점수</div>
+      <div class="metric-val">${Math.round(p.cost)}<span class="unit"> /100</span></div>
+      <div class="metric-sub">높을수록 저렴함</div>
+    </div>`;
+
+  const labels=ids.map(id=>matById(id).name);
+  const condReals=ids.map(id=>matById(id).cond);
+  const condData=ids.map(id=>condScore(matById(id).cond));
+
+  if(state.charts.bar) state.charts.bar.destroy();
+  state.charts.bar=new Chart($('#barChart'),{
+    type:'bar',
+    data:{labels,datasets:[{label:'전기전도성 점수',data:condData,
+      backgroundColor:ids.map((_,i)=>COLORS[i%COLORS.length]+'99'),
+      borderColor:ids.map((_,i)=>COLORS[i%COLORS.length]),
+      borderWidth:1,borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label:(ctx)=>`점수: ${ctx.parsed.y} | 실제값: ${formatScientific(condReals[ctx.dataIndex])} S/m`
+          }
+        }
+      },
+      scales:{y:{min:0,max:100,grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#6b6b80',font:{family:'Space Mono',size:10}}},
+              x:{grid:{display:false},ticks:{color:'#6b6b80',font:{size:10}}}}}
+  });
+
+  if(state.charts.radar) state.charts.radar.destroy();
+  state.charts.radar=new Chart($('#radarChart'),{
+    type:'radar',
+    data:{labels:['전기전도성','안정성','비용효율','열전도성'],
+      datasets:[{label:'현재 조합',data:[cs,Math.round(p.stab),Math.round(p.cost),Math.round(p.therm)],
+        borderColor:'#00e5ff',backgroundColor:'rgba(0,229,255,0.08)',
+        borderWidth:2,pointBackgroundColor:'#00e5ff',pointRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{r:{min:0,max:100,grid:{color:'rgba(255,255,255,0.06)'},angleLines:{color:'rgba(255,255,255,0.06)'},ticks:{display:false},pointLabels:{color:'#6b6b80',font:{size:11}}}}}
+  });
+}
+
+function resetSim(){
+  state.selected=[];
+  state.ratios={};
+  buildSimChips();
+  buildRatioUI();
+  $('#result-area').style.display='none';
+  ['bar','radar'].forEach(k=>{ if(state.charts[k]){state.charts[k].destroy();state.charts[k]=null;} });
+}
+
+// ===================== COMPARE =====================
+function addToCompare(id){
+  if(state.compareA.includes(id)) state.compareA=state.compareA.filter(x=>x!==id);
+  else if(state.compareB.includes(id)) state.compareB=state.compareB.filter(x=>x!==id);
+  else if(state.compareA.length<=state.compareB.length && state.compareA.length<4) state.compareA.push(id);
+  else if(state.compareB.length<4) state.compareB.push(id);
+  buildCompareChips();
+  renderCompareSlots();
+}
+
+function renderCompareSlots(){
+  ['a','b'].forEach(slot=>{
+    const arr=slot==='a'?state.compareA:state.compareB;
+    const el=document.getElementById('slot-'+slot);
+    const cls=slot==='a'?'cchip-a':'cchip-b';
+    if(!arr.length){
+      el.innerHTML=`<span style="font-size:11px;color:var(--muted);">소재를 추가하세요</span>`;
+      return;
+    }
+    el.innerHTML='';
+    arr.forEach(id=>{
+      const span=document.createElement('span');
+      span.className='cchip '+cls;
+      span.textContent=matById(id).name+' ×';
+      span.addEventListener('click',()=>addToCompare(id));
+      el.appendChild(span);
+    });
+  });
+}
+
+function clearCompare(){
+  state.compareA=[]; state.compareB=[];
+  buildCompareChips(); renderCompareSlots();
+  $('#compare-result').style.display='none';
+  ['cradar','cbar'].forEach(k=>{ if(state.charts[k]){state.charts[k].destroy();state.charts[k]=null;} });
+}
+
+function runCompare(){
+  if(!state.compareA.length||!state.compareB.length){ toast('A와 B 모두 소재를 추가하세요'); return; }
+  const pA=calcProps(state.compareA,null);
+  const pB=calcProps(state.compareB,null);
+  const csA=condScore(pA.cond), csB=condScore(pB.cond);
+  const el=$('#compare-result');
+  el.style.display='block';
+  el.className='fade-in';
+
+  // Comparison metric cards
+  $('#compare-metric-cards').innerHTML=`
+    <div class="metric-card hi">
+      <div class="metric-lbl">A · 전기전도도</div>
+      <div class="metric-val" style="color:var(--accent);">${formatScientific(pA.cond)}<span class="unit"> S/m</span></div>
+      <div class="metric-sub">열전도도: ${formatScientific(pA.thermReal,1)} W/(m·K)</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-lbl">B · 전기전도도</div>
+      <div class="metric-val" style="color:var(--accent3);">${formatScientific(pB.cond)}<span class="unit"> S/m</span></div>
+      <div class="metric-sub">열전도도: ${formatScientific(pB.thermReal,1)} W/(m·K)</div>
+    </div>`;
+
+  if(state.charts.cradar) state.charts.cradar.destroy();
+  state.charts.cradar=new Chart($('#compareRadar'),{
+    type:'radar',
+    data:{labels:['전기전도성','안정성','비용효율','열전도성'],
+      datasets:[
+        {label:'A: '+state.compareA.map(id=>matById(id).name).join('+'),data:[csA,Math.round(pA.stab),Math.round(pA.cost),Math.round(pA.therm)],
+          borderColor:'#00e5ff',backgroundColor:'rgba(0,229,255,0.1)',borderWidth:2,pointBackgroundColor:'#00e5ff',pointRadius:4},
+        {label:'B: '+state.compareB.map(id=>matById(id).name).join('+'),data:[csB,Math.round(pB.stab),Math.round(pB.cost),Math.round(pB.therm)],
+          borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.08)',borderWidth:2,pointBackgroundColor:'#f59e0b',pointRadius:4}
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:'#6b6b80',font:{size:11},padding:14}}},
+      scales:{r:{min:0,max:100,grid:{color:'rgba(255,255,255,0.05)'},angleLines:{color:'rgba(255,255,255,0.05)'},ticks:{display:false},pointLabels:{color:'#6b6b80',font:{size:10}}}}}
+  });
+
+  if(state.charts.cbar) state.charts.cbar.destroy();
+  state.charts.cbar=new Chart($('#compareBar'),{
+    type:'bar',
+    data:{labels:['전기전도성','안정성','비용효율','열전도성'],
+      datasets:[
+        {label:'A',data:[csA,Math.round(pA.stab),Math.round(pA.cost),Math.round(pA.therm)],backgroundColor:'rgba(0,229,255,0.3)',borderColor:'#00e5ff',borderWidth:1,borderRadius:4},
+        {label:'B',data:[csB,Math.round(pB.stab),Math.round(pB.cost),Math.round(pB.therm)],backgroundColor:'rgba(245,158,11,0.3)',borderColor:'#f59e0b',borderWidth:1,borderRadius:4}
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{color:'#6b6b80',font:{size:11},padding:12}},
+        tooltip:{
+          callbacks:{
+            afterLabel:(ctx)=>{
+              if(ctx.dataIndex===0){
+                const real = ctx.dataset.label==='A' ? pA.cond : pB.cond;
+                return `실제값: ${formatScientific(real)} S/m`;
+              }
+              return '';
+            }
+          }
+        }
+      },
+      scales:{y:{min:0,max:100,grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#6b6b80',font:{size:10}}},
+              x:{grid:{display:false},ticks:{color:'#6b6b80',font:{size:10}}}}}
+  });
+}
+
+// ===================== RANKING =====================
+function openNickModal(){
+  if(!state.lastResult){ toast('먼저 시뮬레이션을 실행하세요'); return; }
+  $('#nick-input').value='';
+  $('#nick-error').textContent='';
+  $('#nick-modal').classList.remove('hidden');
+  setTimeout(()=>$('#nick-input').focus(),100);
+}
+function closeNickModal(){ $('#nick-modal').classList.add('hidden'); }
+
+function saveRankWithNick(){
+  const nick=$('#nick-input').value.trim();
+  const errEl=$('#nick-error');
+  if(nick.length<2){ errEl.textContent='닉네임은 2자 이상이어야 합니다'; return; }
+  if(nick.length>16){ errEl.textContent='닉네임은 16자 이하여야 합니다'; return; }
+  if(!/^[가-힣a-zA-Z0-9_\-\s]+$/.test(nick)){ errEl.textContent='한글/영문/숫자/_-만 사용 가능합니다'; return; }
+  state.ranking.push({ ...state.lastResult, nick });
+  state.ranking.sort((a,b)=>b.cs-a.cs);
+  state.ranking=state.ranking.slice(0,MAX_RANK);
+  persistRanking();
+  renderRank();
+  closeNickModal();
+  toast(`★ "${nick}" 의 결과가 랭킹에 저장되었습니다!`);
+}
+
+function openAdminDelete(){
+  state.pendingAdminAction='delete';
+  $('#admin-pw').value='';
+  $('#admin-error').textContent='';
+  $('#admin-modal').classList.remove('hidden');
+  setTimeout(()=>$('#admin-pw').focus(),100);
+}
+function closeAdminModal(){ $('#admin-modal').classList.add('hidden'); }
+function confirmAdmin(){
+  const pw=$('#admin-pw').value;
+  if(pw!==ADMIN_PW){
+    $('#admin-error').textContent='비밀번호가 틀렸습니다';
+    $('#admin-pw').value='';
+    return;
+  }
+  closeAdminModal();
+  if(state.pendingAdminAction==='delete'){
+    state.ranking=[];
+    persistRanking();
+    renderRank();
+    toast('랭킹이 초기화되었습니다');
+  }
+}
+
+function renderRank(){
+  const el=$('#rank-area');
+  if(!state.ranking.length){
+    el.innerHTML='<div class="empty">아직 저장된 결과가 없습니다<br><span style="display:block;margin-top:6px;font-size:10px;">시뮬레이션 후 ★ 랭킹에 저장 버튼으로 등록하세요</span></div>';
+    return;
+  }
+  const medals=['🥇','🥈','🥉'];
+  el.innerHTML=`<table class="rank-table">
+    <thead><tr>
+      <th>#</th><th>닉네임</th><th>소재 조합</th><th>전기전도도</th><th>점수</th><th>안정성</th><th>시간</th>
+    </tr></thead>
+    <tbody>${state.ranking.map((r,i)=>`
+      <tr data-i="${i}" title="클릭하면 결과 보기">
+        <td><span class="rank-num ${i<3?'rank-'+(i+1):''}">${medals[i]||i+1}</span></td>
+        <td><span class="nick-badge">${escapeHtml(r.nick||'-')}</span></td>
+        <td><span class="badge">${escapeHtml(r.name)}</span></td>
+        <td style="font-family:var(--font-mono);font-size:12px;color:var(--text);">${r.cond?formatScientific(r.cond)+' S/m':'-'}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-family:var(--font-mono);font-size:14px;color:var(--accent);">${r.cs}</span>
+            <div class="score-bar-wrap"><div class="score-bar" style="width:${r.cs}%"></div></div>
+          </div>
+        </td>
+        <td style="font-family:var(--font-mono);font-size:12px;color:var(--muted);">${r.stab}</td>
+        <td style="font-size:11px;color:var(--muted);">${r.time}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+  el.querySelectorAll('tbody tr').forEach(tr=>{
+    tr.addEventListener('click',()=>loadRankResult(+tr.dataset.i));
+  });
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function loadRankResult(i){
+  const r=state.ranking[i];
+  if(!r) return;
+  switchTab('sim');
+  state.selected=[...r.ids];
+  state.ratios={...r.ratioSnap};
+  buildSimChips(); buildRatioUI();
+  const p=calcProps(r.ids, r.ratioSnap);
+  showResult(r.ids, r.ratioSnap, p, r.cs);
+  state.lastResult={...r};
+  toast(`📊 "${r.nick||r.name}" 결과를 불러왔습니다`);
+}
+
+function exportRankCSV(){
+  if(!state.ranking.length){ toast('내보낼 랭킹이 없습니다'); return; }
+  const header=['순위','닉네임','소재 조합','전기전도도(S/m)','전도성 점수','열전도도(W/m·K)','안정성 점수','비용 효율 점수','등록 시간'];
+  const rows=state.ranking.map((r,i)=>[
+    i+1, r.nick||'-', r.name,
+    r.cond?r.cond.toExponential(3):'-',
+    r.cs,
+    r.thermReal!==undefined?r.thermReal.toFixed(1):'-',
+    r.stab, r.cost, r.time
+  ]);
+  const csv=[header,...rows].map(row=>row.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  // Add UTF-8 BOM for Excel compatibility
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`electrode_ranking_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('📥 CSV로 내보냈습니다');
+}
+
+// ===================== MATERIAL MODAL =====================
+function openMatModal(id){
+  const m=matById(id);
+  $('#mm-title').textContent=m.name;
+  $('#mm-sub').innerHTML=`
+    <span>카테고리: ${m.cat}</span>
+    <span class="type-tag ${TYPE_CLASS[m.type]}">${TYPE_LABELS[m.type]}</span>`;
+  $('#mm-summary').textContent=m.summary;
+  $('#mm-desc').textContent=m.desc;
+  $('#mm-example').textContent=m.example;
+  $('#mm-props').innerHTML=`
+    <div class="mprop" style="grid-column:1/-1;">
+      <div class="mprop-label">전기전도도 (실제값)</div>
+      <div class="mprop-val" style="color:var(--accent);">${formatScientific(m.cond)} S/m</div>
+      <div class="mprop-sub">정규화 점수: ${condScore(m.cond)} / 100</div>
+      <div class="prop-bar-wrap"><div class="prop-bar" style="width:${condScore(m.cond)}%"></div></div>
+    </div>
+    <div class="mprop" style="grid-column:1/-1;">
+      <div class="mprop-label">열전도도 (실제값)</div>
+      <div class="mprop-val" style="color:var(--accent3);">${formatScientific(m.thermReal,1)} W/(m·K)</div>
+      <div class="mprop-sub">정규화 점수: ${thermScore(m.thermReal)} / 100</div>
+      <div class="prop-bar-wrap"><div class="prop-bar" style="width:${thermScore(m.thermReal)}%"></div></div>
+    </div>
+    <div class="mprop">
+      <div class="mprop-label">안정성 점수</div>
+      <div class="mprop-val">${m.stab} / 100</div>
+      <div class="prop-bar-wrap"><div class="prop-bar" style="width:${m.stab}%"></div></div>
+    </div>
+    <div class="mprop">
+      <div class="mprop-label">비용 효율 점수</div>
+      <div class="mprop-val">${m.cost} / 100</div>
+      <div class="prop-bar-wrap"><div class="prop-bar" style="width:${m.cost}%"></div></div>
+    </div>`;
+  $('#mat-modal').classList.remove('hidden');
+}
+function closeMaterialModal(){ $('#mat-modal').classList.add('hidden'); }
+
+// ===================== TAB SWITCH =====================
+function switchTab(name){
+  $$('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  $$('.panel').forEach(p=>p.classList.remove('active'));
+  $('#tab-'+name).classList.add('active');
+  if(name==='rank') renderRank();
+}
+
+// ===================== TOAST =====================
+let toastTimer;
+function toast(msg){
+  const el=$('#toast');
+  el.textContent=msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2400);
+}
+
+// ===================== EVENT BINDINGS =====================
+function bindEvents(){
+  // Tabs
+  $$('.tab-btn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+  // Sim buttons
+  $('#btn-run-sim').addEventListener('click',runSim);
+  $('#btn-reset-sim').addEventListener('click',resetSim);
+  $('#btn-save-rank').addEventListener('click',openNickModal);
+  // Compare buttons
+  $('#btn-run-compare').addEventListener('click',runCompare);
+  $('#btn-clear-compare').addEventListener('click',clearCompare);
+  // Rank buttons
+  $('#btn-delete-rank').addEventListener('click',openAdminDelete);
+  $('#btn-export-rank').addEventListener('click',exportRankCSV);
+  // Material modal
+  $('#btn-close-mat').addEventListener('click',closeMaterialModal);
+  $('#mat-modal').addEventListener('click',e=>{ if(e.target.id==='mat-modal') closeMaterialModal(); });
+  // Nick modal
+  $('#btn-confirm-nick').addEventListener('click',saveRankWithNick);
+  $('#btn-cancel-nick').addEventListener('click',closeNickModal);
+  $('#nick-input').addEventListener('keydown',e=>{ if(e.key==='Enter') saveRankWithNick(); });
+  $('#nick-modal').addEventListener('click',e=>{ if(e.target.id==='nick-modal') closeNickModal(); });
+  // Admin modal
+  $('#btn-confirm-admin').addEventListener('click',confirmAdmin);
+  $('#btn-cancel-admin').addEventListener('click',closeAdminModal);
+  $('#admin-pw').addEventListener('keydown',e=>{ if(e.key==='Enter') confirmAdmin(); });
+  $('#admin-modal').addEventListener('click',e=>{ if(e.target.id==='admin-modal') closeAdminModal(); });
+  // ESC to close modals
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){
+      closeMaterialModal();
+      closeNickModal();
+      closeAdminModal();
+    }
+  });
+}
+
+// ===================== INIT =====================
+function init(){
+  loadRanking();
+  bindEvents();
+  buildTrending();
+  buildCatFilter('cat-filter', ()=>state.activeCat, cat=>{ state.activeCat=cat; buildSimChips(); });
+  buildCatFilter('cat-filter-c', ()=>state.activeCatC, cat=>{ state.activeCatC=cat; buildCompareChips(); });
+  buildTypeFilter('type-filter', ()=>state.activeType, t=>{ state.activeType=t; buildSimChips(); });
+  buildTypeFilter('type-filter-c', ()=>state.activeTypeC, t=>{ state.activeTypeC=t; buildCompareChips(); });
+  buildSimChips();
+  buildCompareChips();
+  buildRatioUI();
+  renderCompareSlots();
+}
+
+init();
+</script>
+</body>
+</html>
