@@ -557,17 +557,22 @@ function thermScore(t){ return +(Math.min(100,Math.log10(t+1)/Math.log10(5001)*1
 
 function calcProps(ids, ratioMap){
   const total=ids.reduce((s,id)=>s+(ratioMap?ratioMap[id]:50),0)||1;
-  let cond=0, thermReal=0, stab=0, cost=0, therm=0;
+  // 전기전도도·열전도도는 값의 스케일이 수자릿수씩 차이나므로
+  // (예: 전도도 그래핀 1e8 vs PEDOT 1e3, 열전도도 그래핀 3000 vs PANI 0.3)
+  // 산술평균을 내면 가장 큰 값이 독식해 점수가 치솟는다.
+  // 로그공간에서 비율 가중평균(=기하평균)을 내면, 결과 점수가
+  // 각 소재 점수(condScore/thermScore)의 비율 가중평균과 사실상 일치한다.
+  let logCond=0, logTherm=0, stab=0, cost=0, therm=0;
   ids.forEach(id=>{
     const m=matById(id);
     const w=(ratioMap?ratioMap[id]:50)/total;
-    cond+=m.cond*w;
-    thermReal+=m.thermReal*w;
+    logCond+=Math.log10(m.cond)*w;
+    logTherm+=Math.log10(m.thermReal)*w;
     stab+=m.stab*w;
     cost+=m.cost*w;
     therm+=m.therm*w;
   });
-  return { cond, thermReal, stab, cost, therm };
+  return { cond:Math.pow(10,logCond), thermReal:Math.pow(10,logTherm), stab, cost, therm };
 }
 
 // ===================== FIREBASE REST =====================
@@ -588,6 +593,18 @@ async function fbPost(path, data){
 async function fbDelete(path){
   const res = await fetch(`${FIREBASE_URL}${path}.json`,{ method:'DELETE' });
   if(!res.ok) throw new Error(`DELETE ${res.status}`);
+}
+
+// 저장 후 호출: 점수(cs) 기준 상위 MAX_RANK 개만 남기고
+// 그 아래 오래된 기록은 Firebase 에서 삭제해 DB 가 무한히 커지지 않게 한다.
+async function pruneRankings(){
+  const data = await fbGet(RANK_PATH);
+  if(!data) return;
+  const all = Object.entries(data).map(([key,val])=>({ key, cs:val.cs||0 }));
+  if(all.length<=MAX_RANK) return;
+  all.sort((a,b)=>b.cs-a.cs);
+  const toDelete = all.slice(MAX_RANK);
+  await Promise.all(toDelete.map(e=>fbDelete(`${RANK_PATH}/${e.key}`)));
 }
 
 async function loadRankingFromFirebase(){
@@ -1010,6 +1027,7 @@ async function saveRankWithNick(){
   const entry={ ...state.lastResult, nick, savedAt: Date.now() };
   try{
     await fbPost(RANK_PATH, entry);
+    await pruneRankings();
     await loadRankingFromFirebase();
     closeNickModal();
     toast(`★ "${nick}" 의 결과가 랭킹에 저장되었습니다!`);
